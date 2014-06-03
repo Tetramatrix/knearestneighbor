@@ -711,18 +711,22 @@ class nearestneighbor
         $lib["set"]=$pObj->pointset;
        
         $temp=explode("_",$find[0]);
-        $key=array_pop($temp);
-        if ($root!=0) 
+        $temp=array_reverse($temp);
+        foreach ($temp as $key) 
         {
-            for ($i=$root;$i>=0;$i--)
+            foreach ($lib["poly"] as $ikey=>$iarr) 
             {
-                if ($temp[$i]) 
+                if ($key==$ikey) 
                 {
-                    $key=$temp[$i];
-                    break;  
+                    break;   
                 }
             }
+            if ($key==$ikey) 
+            {
+                break;   
+            }
         }
+        
         $vis=new visualize($pObj,"c:\\Temp\\",$lib,$key,$p);
         $vis->genimage(); 
     }
@@ -752,6 +756,60 @@ class nearestneighbor
             $keys=array_keys($distance);  
             return array($keys[0],$distance[$keys[0]]);                
         } while (true);        
+    }
+
+    function insidePoly($poly, $pointx, $pointy) 
+    {
+        $i=$j=0;
+        $inside = false;
+        for ($i = 0, $j = count($poly) - 1; $i < count(poly); $j = $i++) 
+        {
+            if((($poly[$i]->y > $pointy) != ($poly[$j]->y > $pointy)) && ($pointx < ($poly[$j]->x-$poly[$i]->x) * ($pointy-$poly[$i]->y) / ( $poly[$j]->y-$poly[$i]->y) + $poly[$i]->x) ) 
+            {
+                $inside = !$inside;   
+            }
+        }
+        return $inside;
+    }
+    
+    function polytest($pObj,$root,$p) 
+    {
+        $pObj->make_delaunay($pObj->kset[$root]);
+        $pObj->make_voronoi();
+
+        $lib["poly"]=$pObj->polygone;       
+        $lib["voronoi"]=$pObj->voronoi;
+        $lib["tri"]=$pObj->delaunay;
+        $lib["perimeter"]=$pObj->perimeter;
+        $lib["set"]=$pObj->pointset;
+        
+        foreach ($lib["poly"] as $key=>$arr) 
+        {
+               $poly=array();
+               $number=false;
+               foreach ($arr as $ikey=>$iarr) 
+               {
+                    $poly[]=$iarr[0]; 
+                    $poly[]=$iarr[1];  
+               }
+/*               foreach ($lib["perimeter"][$key] as $ikey=>$iarr) 
+               {
+                    $poly[]=$iarr[0]; 
+                    $poly[]=$iarr[1];
+               }*/
+               
+               $number=$this->insidePoly($poly,$p->long,$p->lat);
+               if ($number!=false) 
+               {
+                   $number=$key;
+                   break;
+               }
+        }
+        
+        $vis=new visualize($pObj,"c:\\Temp\\",$lib,$key,$p);
+        $vis->genimage(); 
+
+        return $number;   
     }
     
     function main ($pObj,$tree,$p) 
