@@ -118,6 +118,7 @@ class visualize
                     imageline($im,$x1,$y1,$x2,$y2,$firebrick);
                  }
              } 
+
              foreach ($this->search["perimeter"][$key] as $ikey=>$iarr) 
              {
                 list($x1,$y1) = array(round($iarr[0]->x),round($iarr[0]->y));
@@ -291,7 +292,7 @@ class voronoi
       return $inside;
    }
    
-   function getEdges($n, $x, $y, $z)
+   function getEdges($n, $x, $y)
    {
       /*
          Set up the supertriangle
@@ -382,8 +383,11 @@ class voronoi
          $edges=array_values($edges);
          foreach ($edges as $ekey => $earr)
          {   
-            $v[] = array($edges[$ekey][0],$edges[$ekey][1],$key);
-            $complete[$ntri++]=0;
+            if ($edges[$ekey][0]!=$key && $edges[$ekey][1]!=$key) 
+            {
+                $v[] = array($edges[$ekey][0],$edges[$ekey][1],$key);
+                $complete[$ntri++]=0;
+            }
          }
       }
       
@@ -447,7 +451,8 @@ class voronoi
                 }
                 if ($c>1) break;
             }
-          
+
+            $parent=array();        
             $c=0;
             $temp=$aux=$this->kset[$lvl];
             foreach ($this->ktemp[$lvl] as $key => $arr) 
@@ -486,18 +491,34 @@ class voronoi
                 {
                     if ($root==$arr) 
                     {
-                        unset($edge[$key]);
+                        foreach ($parent[$root] as $ikey=>$iarr) 
+                        {
+                            if (is_array($iarr)) 
+                            {
+                                $push[]=array($ikey,$parent[$root][$ikey]);
+                                unset($edge[$key]);
+                                unset($parent[$root][$ikey]);
+                            }
+                        }
                     }
                 }
             }
-            $aux[$root]=$parent[$root];
             $aux[$root]=$parent[$root];
             
             foreach ($edge as $ikey=>$iarr) 
             {
                 $aux[$root]["_".$iarr]=$parent[$iarr];
-            }            
-            $parent=array();
+                if (!empty($push)) 
+                {
+                    foreach ($push as $iikey=>$iiarr) 
+                    {                     
+                        list($iiikey,$iiiarr)=$iiarr;
+                        unset($push[$iikey]);
+                        $aux[$root]["_".$iarr][$iiikey]=$iiiarr;    
+                    }  
+                }
+            }    
+                    
             $lvl++;  
             $this->kset[$lvl]=$aux;
             $done=count($temp);
@@ -526,7 +547,7 @@ class voronoi
       {
         list($x[],$y[]) = array($arr[0],$arr[1]);
       }
-      $result=$this->getEdges(count($input), $x, $y, $z);
+      $result=$this->getEdges(count($input), $x, $y);
    }   
 
    function make_voronoi () 
@@ -625,43 +646,19 @@ class voronoi
                      foreach ($arr as $iikey=>$iiarr) 
                      {
                         if ($ikey!=$iikey)
-                        {                 
-                            $angleWith=atan2($iarr[0]->x,$iarr[0]->y);    
-                            /*if ($angleWith>0) 
-                            {
-                                $temp=$this->polygone[$keys][$ikey][0]->x;
-                                $this->polygone[$keys][$ikey][0]->x=$this->polygone[$keys][$ikey][0]->y;
-                                $this->polygone[$keys][$ikey][0]->y=$temp;
-                            }
-                            $angleWith=atan2($iarr[1]->x,$iarr[1]->y);    
-                            if ($angleWith>0) 
-                            {
-                                $temp=$this->polygone[$keys][$ikey][1]->x;
-                                $this->polygone[$keys][$ikey][1]->x=$this->polygone[$keys][$ikey][1]->y;
-                                $this->polygone[$keys][$ikey][1]->y=$temp;
-                            }*/
+                        {                     
                             if ($iarr[0]->x == $iiarr[1]->x && $iarr[0]->y == $iiarr[1]->y 
                             && $iarr[1]->x == $iiarr[0]->x && $iarr[1]->y == $iiarr[0]->y) 
                             {
                                 unset($arr[$ikey]);
                                 unset($this->polygone[$keys][$ikey]);
                             }   
-                            if ($iarr[0]->x == FALSE) 
-                            {
-                                unset($arr[$ikey]);
-                                unset($this->polygone[$keys][$ikey]);
-                            }  
-                             if ($iarr[1]->x == FALSE) 
-                            {
-                                unset($arr[$ikey]);
-                                unset($this->polygone[$keys][$ikey]);
-                            }      
                          }
                      }
                 }
           }
             
-          foreach ($this->hull as $keys=>$arr) 
+          foreach ($this->perimeter as $keys=>$arr) 
           {
                 foreach ($arr as $ikey=>$iarr) 
                 {
@@ -673,18 +670,9 @@ class voronoi
                             && $iarr[1]->x == $iiarr[0]->x && $iarr[1]->y == $iiarr[0]->y) 
                             {
                                 unset($arr[$ikey]);
-                                unset($this->hull[$keys][$ikey]);
+                                unset($this->perimeter[$keys][$ikey]);
                             }    
-                            if ($iarr[0]->x == FALSE) 
-                            {
-                                unset($arr[$ikey]);
-                                unset($this->hull[$keys][$ikey]);
-                            }  
-                            if ($iarr[1]->x == FALSE) 
-                            {
-                                unset($arr[$ikey]);
-                                unset($this->hull[$keys][$ikey]);
-                            }
+        
                         }
                      }
                 }
@@ -738,7 +726,7 @@ class nearestneighbor
         $lib["poly"]=$pObj->polygone;       
         $lib["voronoi"]=$pObj->voronoi;
         $lib["tri"]=$pObj->delaunay;
-        $lib["hull"]=$pObj->hull;
+        $lib["perimeter"]=$pObj->perimeter;
         $lib["set"]=$pObj->pointset;
        
         $temp=explode("_",$find[0]);
@@ -795,7 +783,7 @@ class nearestneighbor
         $inside = false;
         for ($i=0,$j=count($poly)-1;$i<count($poly);$j=$i++) 
         {
-            if((($poly[$i]->y>$pointy)!=($poly[$j]->y>$pointy))&&($pointx<($poly[$j]->x-$poly[$i]->x)*($pointy-$poly[$i]->y)/($poly[$j]->y-$poly[$i]->y)+$poly[$i]->x)) 
+            if((($poly[$i]->y>$pointy)!=($poly[$j]->y>$pointy)) && ($pointx<($poly[$j]->x-$poly[$i]->x)*($pointy-$poly[$i]->y)/($poly[$j]->y-$poly[$i]->y)+$poly[$i]->x)) 
             {
                 $inside = !$inside;   
             }
@@ -825,7 +813,7 @@ class nearestneighbor
         $lib["poly"]=$pObj->polygone;       
         $lib["voronoi"]=$pObj->voronoi;
         $lib["tri"]=$pObj->delaunay;
-        $lib["hull"]=$pObj->hull;
+        $lib["perimeter"]=$pObj->perimeter;
         $lib["set"]=$pObj->pointset;
         
         foreach ($lib["poly"] as $key=>$arr) 
@@ -835,22 +823,28 @@ class nearestneighbor
                
                foreach ($arr as $ikey=>$iarr) 
                {
-                    $sort[]=$this->angleWith($iarr[0]->x,$iarr[0]->y,$iarr[1]->x,$iarr[1]->y,200,200);
+                    $sort[]=$this->angleWith($iarr[0]->x,$iarr[0]->y,$iarr[1]->x,$iarr[1]->y,$pObj->stageWidth/2,$pObj->stageHeight/2);
                     $poly[]=array($iarr[0],$iarr[1]); 
                }
-               foreach ($lib["hull"][$key] as $ikey=>$iarr) 
+               foreach ($lib["perimeter"][$key] as $ikey=>$iarr) 
                {
-                    $sort[]=$this->angleWith($iarr[0]->x,$iarr[0]->y,$iarr[1]->x,$iarr[1]->y,200,200);
+                    $sort[]=$this->angleWith($iarr[0]->x,$iarr[0]->y,$iarr[1]->x,$iarr[1]->y,$pObj->stageWidth/2,$pObj->stageHeight/2);
                     $poly[]=array($iarr[0],$iarr[1]);                
                }
-               
-               array_multisort($sort, SORT_ASC, SORT_NUMERIC, $poly);
+               array_multisort($sort, SORT_DESC, SORT_NUMERIC, $poly);
+
                foreach ($poly as $ikey=>$iarr) 
                {
                    $sorted[]=$iarr[0];
                    $sorted[]=$iarr[1];
                }
-                              
+               
+/*               foreach ($lib["perimeter"][$key] as $ikey=>$iarr) 
+               {
+                    $poly[]=$iarr[0]; 
+                    $poly[]=$iarr[1];
+               }*/
+               
                $number=$this->insidePoly($sorted,$p->lat,$p->long);
                if ($number!=false) 
                {
